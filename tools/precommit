@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""
+Check staged files before committing them.
+
+This script is called by .git/hooks/pre-commit, which runs before every git commit
+unless the --no-verify flag is passed.
+"""
+import subprocess
+import sys
+
+
+def main():
+    # TODO(2020-02-07): For file paths with non-ASCII characters, git diff will print
+    # a quoted string with backslash escapes rather than the actual non-ASCII bytes,
+    # which hinders detection of non-ASCII file paths. I'd prefer to have git diff print
+    # the raw bytes of the file path so this check can detect and reject non-ASCII file
+    # paths.
+    cmd = ["git", "diff", "--name-only", "--cached"]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE)
+    staged_files = result.stdout.decode("ascii").splitlines()
+
+    abort = False
+    for staged_file in staged_files:
+        looks_good = check_file(staged_file)
+        if not looks_good:
+            abort = True
+
+    if abort:
+        sys.exit(1)
+
+
+def check_file(path):
+    """
+    Return False if there are any problems with the file that should block the commit.
+    """
+    looks_good = True
+
+    if any(not c.isprintable() for c in path):
+        looks_good = False
+        error(path, "non-printable character in file path")
+
+    if any(c.isspace() for c in path):
+        looks_good = False
+        error(path, "whitespace character in file path")
+
+    if any(c == "-" for c in path):
+        looks_good = False
+        error(path, "hyphen in file path")
+
+    if any(c == "\\" for c in path):
+        looks_good = False
+        error(path, "backslash in file path")
+
+    return looks_good
+
+
+def error(path, message):
+    sys.stderr.write(f"ERROR for {path}: {message}\n")
+
+
+if __name__ == "__main__":
+    main()
