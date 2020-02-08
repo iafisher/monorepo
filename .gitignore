@@ -1,0 +1,16 @@
+# Bazel
+bazel-bin
+bazel-monorepo
+bazel-out
+bazel-testlogs
+
+# Python
+__pycache__
+*.pyo
+*.pyc
+.mypy_cache
+.venv
+
+# Miscellaneous
+*.swp
+*~
