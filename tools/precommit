@@ -5,6 +5,7 @@ Check staged files before committing them.
 This script is called by .git/hooks/pre-commit, which runs before every git commit
 unless the --no-verify flag is passed.
 """
+import os
 import subprocess
 import sys
 
@@ -51,7 +52,27 @@ def check_file(path):
         looks_good = False
         error(path, "backslash in file path")
 
+    extension = os.path.splitext(path)[1]
+    validator = filetype_validators.get(extension)
+    if validator and not validator(path):
+        looks_good = False
+
     return looks_good
+
+
+def check_python_file(path):
+    cmd = ["black", "--check", path]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        error(path, "black would reformat")
+        return False
+    else:
+        return True
+
+
+filetype_validators = {
+    ".py": check_python_file,
+}
 
 
 def error(path, message):
