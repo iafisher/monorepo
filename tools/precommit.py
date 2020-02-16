@@ -10,26 +10,20 @@ import subprocess
 import sys
 from collections import namedtuple
 
+from common.pycommon import blue, green, plural, red
+
 
 Problem = namedtuple("Problem", ["path", "message", "fixable", "fix_command"])
 Problem.__new__.__defaults__ = (False, None)
 
-RepoInfo = namedtuple("RepoInfo", ["unstaged_files"])
+RepoInfo = namedtuple("RepoInfo", ["staged_files", "unstaged_files"])
 
 
 def main():
-    # TODO(2020-02-07): For file paths with non-ASCII characters, git diff will print
-    # a quoted string with backslash escapes rather than the actual non-ASCII bytes,
-    # which hinders detection of non-ASCII file paths. I'd prefer to have git diff print
-    # the raw bytes of the file path so this check can detect and reject non-ASCII file
-    # paths.
-    cmd = ["git", "diff", "--name-only", "--cached"]
-    result = subprocess.run(cmd, stdout=subprocess.PIPE)
-    staged_files = result.stdout.decode("ascii").splitlines()
     repo_info = get_repo_info()
 
     problems = []
-    for staged_file in staged_files:
+    for staged_file in repo_info.staged_files:
         staged_file_problems = check_file(staged_file, repo_info)
         problems.extend(staged_file_problems)
 
@@ -37,19 +31,35 @@ def main():
         for problem in problems:
             print_problem(problem)
 
-        print(f"\n{len(problems)} issue(s) detected.", file=sys.stderr)
+        print(f"\n{red(plural(len(problems), 'issue'))} detected.", file=sys.stderr)
 
         fixable_problems = [problem for problem in problems if problem.fixable]
         if fixable_problems:
+            msg = f"Fix {len(fixable_problems)} of {plural(len(problems), 'issue')}"
+            if len(fixable_problems) == len(problems):
+                msg = green(msg)
+            else:
+                msg = blue(msg)
+
             print(file=sys.stderr)
-            print(
-                f"Fix {len(fixable_problems)} of {len(problems)} issue(s) with:",
-                file=sys.stderr,
-            )
-            for i, problem in enumerate(fixable_problems):
-                suffix = " && \\" if i != len(fixable_problems) - 1 else ""
-                print(f"    {problem.fix_command}{suffix}", file=sys.stderr)
+            print(f"{msg} with:", file=sys.stderr)
+
+            paths_to_fix = set()
+            for problem in fixable_problems:
+                # The only time that problem.fix_command should be falsey when
+                # problem.fixable is True is for unstaged changes to a staged file,
+                # because that problem is solved by the 'git add' command which must be
+                # applied at the end.
+                if problem.fix_command:
+                    print(f"    {problem.fix_command} && \\", file=sys.stderr)
+                    paths_to_fix.add(problem.path)
+
+            # 'git add' all the files that the fixes changed.
+            paths_to_fix_as_str = " ".join(map(repr, sorted(paths_to_fix)))
+            print(f"    git add {paths_to_fix_as_str}")
         sys.exit(1)
+    else:
+        print(f"\n{green('No issues')} detected.", file=sys.stderr)
 
 
 def check_file(path, repo_info):
@@ -57,7 +67,9 @@ def check_file(path, repo_info):
     problems = []
 
     if path in repo_info.unstaged_files:
-        problems.append(Problem(path, "file has both staged and unstaged changes"))
+        problems.append(
+            Problem(path, "file has both staged and unstaged changes", fixable=True)
+        )
 
     if any(not c.isprintable() for c in path):
         problems.append(Problem(path, "non-printable character in file path"))
@@ -88,7 +100,7 @@ def check_python_file(path, repo_info):
     if result.returncode != 0:
         problem = Problem(
             path=path,
-            message="black would reformat",
+            message="bad formatting",
             fixable=True,
             fix_command=f"black {path!r}",
         )
@@ -101,14 +113,25 @@ FILETYPE_CHECKS = {".py": check_python_file}
 
 
 def get_repo_info():
+    # TODO(2020-02-07): For file paths with non-ASCII characters, git diff will print
+    # a quoted string with backslash escapes rather than the actual non-ASCII bytes,
+    # which hinders detection of non-ASCII file paths. I'd prefer to have git diff print
+    # the raw bytes of the file path so this check can detect and reject non-ASCII file
+    # paths.
+    cmd = ["git", "diff", "--name-only", "--cached"]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE)
+    staged_files = result.stdout.decode("ascii").splitlines()
+
     cmd = ["git", "diff", "--name-only"]
     result = subprocess.run(cmd, stdout=subprocess.PIPE)
     unstaged_files = result.stdout.decode("ascii").splitlines()
-    return RepoInfo(unstaged_files=unstaged_files)
+    return RepoInfo(staged_files=staged_files, unstaged_files=unstaged_files)
 
 
 def print_problem(problem):
-    print(f"ERROR for {problem.path}: {problem.message}", file=sys.stderr)
+    print(
+        f"{red('ERROR')} for {blue(problem.path)}: {problem.message}", file=sys.stderr
+    )
 
 
 if __name__ == "__main__":
