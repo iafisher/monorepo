@@ -22,6 +22,11 @@ RepoInfo = namedtuple("RepoInfo", ["staged_files", "unstaged_files"])
 def main():
     repo_info = get_repo_info()
 
+    affected_tests_result = check_affected_tests(repo_info)
+    if not affected_tests_result:
+        print(f"{red('ERROR')}: affected tests did not pass.", file=sys.stderr)
+        sys.exit(1)
+
     problems = []
     for staged_file in repo_info.staged_files:
         staged_file_problems = check_file(staged_file, repo_info)
@@ -46,13 +51,13 @@ def main():
 
             paths_to_fix = set()
             for problem in fixable_problems:
+                paths_to_fix.add(problem.path)
                 # The only time that problem.fix_command should be falsey when
                 # problem.fixable is True is for unstaged changes to a staged file,
                 # because that problem is solved by the 'git add' command which must be
                 # applied at the end.
                 if problem.fix_command:
                     print(f"    {problem.fix_command} && \\", file=sys.stderr)
-                    paths_to_fix.add(problem.path)
 
             # 'git add' all the files that the fixes changed.
             paths_to_fix_as_str = " ".join(map(repr, sorted(paths_to_fix)))
@@ -110,6 +115,43 @@ def check_python_file(path, repo_info):
 
 
 FILETYPE_CHECKS = {".py": check_python_file}
+
+
+def check_affected_tests(repo_info):
+    """Run the test suite for all packages that were changed.
+
+    Return True if all tests pass (or if there are no affected tests), False otherwise.
+
+    This check does not run tests for packages that were indirectly affected, e.g. if
+    package A depends on package B and a source file in B was changed, only the tests
+    for B are run.
+    """
+    if not repo_info.staged_files:
+        return True
+
+    # Get the set of packages that the staged files are in.
+    affected_files_as_str = "+".join(repo_info.staged_files)
+    cmd = ["bazel", "query", affected_files_as_str, "--output=package"]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE)
+    affected_packages_as_str = "+".join(
+        set(f"//{pkg}:all" for pkg in result.stdout.decode("ascii").splitlines())
+    )
+
+    # Get the list of test targets in the affected packages.
+    cmd = ["bazel", "query", f"kind(_test, {affected_packages_as_str})"]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE)
+    affected_tests = set(result.stdout.decode("ascii").splitlines())
+
+    if not affected_tests:
+        return True
+
+    for affected_test in affected_tests:
+        cmd = ["bazel", "test", affected_test]
+        result = subprocess.run(cmd)
+        if result.returncode != 0:
+            return False
+
+    return True
 
 
 def get_repo_info():
