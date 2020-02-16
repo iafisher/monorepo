@@ -8,6 +8,13 @@ unless the --no-verify flag is passed.
 import os
 import subprocess
 import sys
+from collections import namedtuple
+
+
+Problem = namedtuple("Problem", ["path", "message", "fixable", "fix_command"])
+Problem.__new__.__defaults__ = (False, None)
+
+RepoInfo = namedtuple("RepoInfo", ["unstaged_files"])
 
 
 def main():
@@ -19,64 +26,89 @@ def main():
     cmd = ["git", "diff", "--name-only", "--cached"]
     result = subprocess.run(cmd, stdout=subprocess.PIPE)
     staged_files = result.stdout.decode("ascii").splitlines()
+    repo_info = get_repo_info()
 
-    abort = False
+    problems = []
     for staged_file in staged_files:
-        looks_good = check_file(staged_file)
-        if not looks_good:
-            abort = True
+        staged_file_problems = check_file(staged_file, repo_info)
+        problems.extend(staged_file_problems)
 
-    if abort:
+    if problems:
+        for problem in problems:
+            print_problem(problem)
+
+        print(f"\n{len(problems)} issue(s) detected.", file=sys.stderr)
+
+        fixable_problems = [problem for problem in problems if problem.fixable]
+        if fixable_problems:
+            print(file=sys.stderr)
+            print(
+                f"Fix {len(fixable_problems)} of {len(problems)} issue(s) with:",
+                file=sys.stderr,
+            )
+            for i, problem in enumerate(fixable_problems):
+                suffix = " && \\" if i != len(fixable_problems) - 1 else ""
+                print(f"    {problem.fix_command}{suffix}", file=sys.stderr)
         sys.exit(1)
 
 
-def check_file(path):
-    """
-    Return False if there are any problems with the file that should block the commit.
-    """
-    looks_good = True
+def check_file(path, repo_info):
+    """Return a list of Problem objects."""
+    problems = []
+
+    if path in repo_info.unstaged_files:
+        problems.append(Problem(path, "file has both staged and unstaged changes"))
 
     if any(not c.isprintable() for c in path):
-        looks_good = False
-        error(path, "non-printable character in file path")
+        problems.append(Problem(path, "non-printable character in file path"))
 
     if any(c.isspace() for c in path):
-        looks_good = False
-        error(path, "whitespace character in file path")
+        problems.append(Problem(path, "whitespace character in file path"))
 
     if any(c == "-" for c in path):
-        looks_good = False
-        error(path, "hyphen in file path")
+        problems.append(Problem(path, "hyphen in file path"))
 
     if any(c == "\\" for c in path):
-        looks_good = False
-        error(path, "backslash in file path")
+        problems.append(Problem(path, "backslash in file path"))
 
     extension = os.path.splitext(path)[1]
-    validator = filetype_validators.get(extension)
-    if validator and not validator(path):
-        looks_good = False
+    filetype_check = FILETYPE_CHECKS.get(extension)
+    if filetype_check:
+        filetype_problems = filetype_check(path, repo_info)
+        problems.extend(filetype_problems)
 
-    return looks_good
+    return problems
 
 
-def check_python_file(path):
+def check_python_file(path, repo_info):
+    problems = []
+
     cmd = ["black", "--check", path]
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode != 0:
-        error(path, "black would reformat")
-        return False
-    else:
-        return True
+        problem = Problem(
+            path=path,
+            message="black would reformat",
+            fixable=True,
+            fix_command=f"black {path!r}",
+        )
+        problems.append(problem)
+
+    return problems
 
 
-filetype_validators = {
-    ".py": check_python_file,
-}
+FILETYPE_CHECKS = {".py": check_python_file}
 
 
-def error(path, message):
-    sys.stderr.write(f"ERROR for {path}: {message}\n")
+def get_repo_info():
+    cmd = ["git", "diff", "--name-only"]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE)
+    unstaged_files = result.stdout.decode("ascii").splitlines()
+    return RepoInfo(unstaged_files=unstaged_files)
+
+
+def print_problem(problem):
+    print(f"ERROR for {problem.path}: {problem.message}", file=sys.stderr)
 
 
 if __name__ == "__main__":
