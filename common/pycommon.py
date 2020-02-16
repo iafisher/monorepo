@@ -1,6 +1,5 @@
 def pairwise(it):
-    """
-    Transform an iterator into another iterator that yields successive adjacent pairs.
+    """Yields successive adjacent pairs of the iterator.
 
         >>> list(pairwise([1, 2, 3, 4]))
         [(1, 2), (2, 3), (3, 4)]
@@ -15,6 +14,7 @@ def pairwise(it):
 
 
 def plural(n, word, suffix="s"):
+    """Returns the numeral and the proper plural form of the word."""
     return f"{n} {word}" if n == 1 else f"{n} {word}{suffix}"
 
 
@@ -25,17 +25,17 @@ _COLOR_RESET = "0"
 
 
 def red(text):
-    """Return a string that will display as red using ANSI color codes."""
+    """Returns a string that will display as red using ANSI color codes."""
     return _colored(text, _COLOR_RED)
 
 
 def blue(text):
-    """Return a string that will display as blue using ANSI color codes."""
+    """Returns a string that will display as blue using ANSI color codes."""
     return _colored(text, _COLOR_BLUE)
 
 
 def green(text):
-    """Return a string that will display as green using ANSI color codes."""
+    """Returns a string that will display as green using ANSI color codes."""
     return _colored(text, _COLOR_GREEN)
 
 

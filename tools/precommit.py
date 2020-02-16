@@ -68,7 +68,7 @@ def main():
 
 
 def check_file(path, repo_info):
-    """Return a list of Problem objects."""
+    """Returns a list of Problem objects."""
     problems = []
 
     if path in repo_info.unstaged_files:
@@ -118,9 +118,9 @@ FILETYPE_CHECKS = {".py": check_python_file}
 
 
 def check_affected_tests(repo_info):
-    """Run the test suite for all packages that were changed.
+    """Runs the test suite for all packages that were changed.
 
-    Return True if all tests pass (or if there are no affected tests), False otherwise.
+    Returns True if all tests pass (or if there are no affected tests), False otherwise.
 
     This check does not run tests for packages that were indirectly affected, e.g. if
     package A depends on package B and a source file in B was changed, only the tests
