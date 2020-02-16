@@ -14,6 +14,10 @@ def pairwise(it):
         second = next(it)
 
 
+def plural(n, word, suffix="s"):
+    return f"{n} {word}" if n == 1 else f"{n} {word}{suffix}"
+
+
 _COLOR_RED = "91"
 _COLOR_BLUE = "94"
 _COLOR_GREEN = "92"
