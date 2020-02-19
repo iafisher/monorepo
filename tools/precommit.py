@@ -88,6 +88,13 @@ def check_file(path, repo_info):
     if any(c == "\\" for c in path):
         problems.append(Problem(path, "backslash in file path"))
 
+    with open(path, "r", encoding="utf-8") as f:
+        contents = f.read()
+
+    do_not_submit = "DO NOT " + "SUBMIT"
+    if do_not_submit in contents.upper():
+        problems.append(Problem(path, "file contains " + do_not_submit))
+
     extension = os.path.splitext(path)[1]
     filetype_check = FILETYPE_CHECKS.get(extension)
     if filetype_check:
