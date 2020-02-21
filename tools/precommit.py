@@ -28,7 +28,7 @@ def main():
 
         sys.exit(1)
     else:
-        print(f"\n{green('No issues')} detected.", file=sys.stderr)
+        print(f"{green('No issues')} detected.", file=sys.stderr)
 
 
 if __name__ == "__main__":
