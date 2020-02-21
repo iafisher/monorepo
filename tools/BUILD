@@ -10,6 +10,15 @@ py_binary(
     ],
 )
 
+py_binary(
+    name = "fix",
+    srcs = ["fix.py"],
+    deps = [
+        ":check",
+        "//common:pycommon",
+    ],
+)
+
 py_library(
     name = "check",
     srcs = ["check.py"],
