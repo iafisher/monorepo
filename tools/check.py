@@ -99,16 +99,18 @@ def _check_affected_tests(repo_info):
         return True
 
     # Get the set of packages that the staged files are in.
-    affected_files_as_str = "+".join(repo_info.staged_files)
-    cmd = ["bazel", "query", affected_files_as_str, "--output=package"]
-    result = subprocess.run(cmd, stdout=subprocess.PIPE)
-    affected_packages_as_str = "+".join(
-        set(f"//{pkg}:all" for pkg in result.stdout.decode("ascii").splitlines())
-    )
+    affected_packages = set()
+    for staged_file in repo_info.staged_files:
+        cmd = ["bazel", "query", staged_file, "--output=package"]
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        if result.returncode == 0:
+            affected_packages.update(
+                f"//{pkg}:all" for pkg in result.stdout.decode("ascii").splitlines()
+            )
 
     # Get the list of test targets in the affected packages.
-    cmd = ["bazel", "query", f"kind(_test, {affected_packages_as_str})"]
-    result = subprocess.run(cmd, stdout=subprocess.PIPE)
+    cmd = ["bazel", "query", f"kind(_test, {'+'.join(affected_packages)})"]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     affected_tests = set(result.stdout.decode("ascii").splitlines())
 
     if not affected_tests:

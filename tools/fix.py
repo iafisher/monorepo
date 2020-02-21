@@ -22,21 +22,19 @@ def main():
 
             # 'git add' all the files that the fixes changed.
             paths_to_fix_as_str = " ".join(map(repr, sorted(paths_to_fix)))
-            cmd = f"    git add {paths_to_fix_as_str}"
+            cmd = f"git add {paths_to_fix_as_str}"
             print(f"{green('Staging fixed files')} in git")
             print()
             _run_command(cmd)
 
-        msg = f"{len(fixable_problems)} of {plural(len(problems), 'issue')}"
+        msg = f"Fixed {len(fixable_problems)} of {plural(len(problems), 'issue')}."
         if len(fixable_problems) == len(problems):
-            msg = green(msg)
-            print(f"Fixed {msg}.")
+            print(green(msg))
         else:
-            msg = blue(msg)
             n = len(problems) - len(fixable_problems)
-            print(f"Fixed {msg}. {red(plural(n, 'issue'))} remain.")
+            print(f"{blue(msg)}. {red(plural(n, 'issue'))} remain.")
     else:
-        print(f"\n{green('No issues')} detected.")
+        print(f"{green('No issues')} detected.")
 
 
 def _run_command(cmd):

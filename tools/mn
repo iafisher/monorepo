@@ -1,0 +1,32 @@
+#!/bin/bash
+# A wrapper script for invoking various useful commands.
+
+
+set -e
+
+repo="$HOME/dev/monorepo"
+
+error() {
+  >&2 echo "Error: $1"
+  exit 1
+}
+
+mn_fix() {
+  cd "$repo"
+  if ! bazel build //tools:fix &> /dev/null; then
+    error "//tools:fix does not build"
+  fi
+  ./bazel-bin/tools/fix
+}
+
+if [[ $(pwd) != "$repo"* ]]; then
+  error "must be run in $repo"
+fi
+
+if [[ -z "$1" ]]; then
+  error "expected argument(s)"
+elif [[ "$1" = fix ]]; then
+  mn_fix
+else
+  error "unknown subcommand $1"
+fi
